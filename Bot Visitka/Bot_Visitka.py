@@ -2,120 +2,100 @@ import telebot
 from telebot import types
 import sqlite3
 import logging
-from dotenv import load_dotenv
-import os
 
-print("Текущая папка:", os.getcwd())  
-print("Файлы в папке:", os.listdir())  
-#Логирование
+# Логгирование
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-#Токен бота
-loaded = load_dotenv()
-token = os.getenv('TOKEN')
-if not token:
-    logger.error("Токен не найден в .env!")
-    exit(1)
-bot = telebot.TeleBot(token)
+#Токен бота должен быть в файле .env
+token = os.getenv('YOUR_TOKEN_HERE')
+bot = telebot.TeleBot("YOUR_TOKEN_HERE")
 
-
-#База данных заявок
-conn = sqlite3.connect('visits.db', check_same_thread=False)
+#Для демо версии временная БД
+conn = sqlite3.connect(':memory:', check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute('''CREATE TABLE IF NOT EXISTS requests 
-                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                   name TEXT, 
+cursor.execute('''CREATE TABLE IF NOT EXISTS requests
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   name TEXT,
                    phone TEXT)''')
-conn.commit()
 
-
+#Главное меню
 def get_keyboard():
-    """Основные кнопки"""
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True,row_width=2)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     buttons = [
-        types.KeyboardButton("Прайс лист"),
+        types.KeyboardButton("Прайс"),
         types.KeyboardButton("Контакты"),
-        types.KeyboardButton("Оставить заявку"),
-        types.KeyboardButton("/cancel")
+        types.KeyboardButton("Оставить заявку")
     ]
     markup.add(*buttons)
     return markup
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "Добро пожаловать! Выберите интересуюищй вас раздел:", reply_markup = get_keyboard())
+    bot.send_message(message.chat.id, 
+                    "Добро пожаловать в демо-бот салона красоты!",
+                    reply_markup=get_keyboard())
 
-#Обработка кнопок
-@bot.message_handler(func=lambda msg: msg.text == "/cancel")
-def cancel_operation(message):
-    bot.send_message(message.chat.id, "Текущая операция отменена. Чтобы вы хотели сделать?", reply_markup=get_keyboard())
+#Прайс лист
+@bot.message_handler(func=lambda msg: msg.text == "Прайс")
+def show_price(message):
 
-@bot.message_handler(func=lambda msg: msg.text == "Прайс лист")
-def price(message):
     markup = types.InlineKeyboardMarkup()
-    btn_hair = types.InlineKeyboardButton("Волосы", callback_data="hair")
-    btn_nails = types.InlineKeyboardButton("Ногти", callback_data="nails")
-    markup.add(btn_hair,btn_nails)
+    markup.add(
+        types.InlineKeyboardButton("Волосы", callback_data="hair"),
+        types.InlineKeyboardButton("Ногти", callback_data="nails")
+    )
     bot.send_message(message.chat.id, "Выберите категорию:", reply_markup=markup)
 
-@bot.message_handler(func=lambda msg: msg.text == "Контакты")
-def contacts(message):
-    contact_text = """
-    Адрес: Волгоград, ул. Колотушкина 20
-    Телефон: +7 (999) 123-45-67
-    """
-    markup = types.InlineKeyboardMarkup()
-    btn_insta = types.InlineKeyboardButton("Instagram", url = "https://instagram.com/example..")
-    btn_website = types.InlineKeyboardButton("Наш сайт", url = "https://example.com")
-    markup.add(btn_insta,btn_website)
-    bot.send_message(message.chat.id, contact_text, reply_markup=markup)
-
+#Начало оформление заявки
 @bot.message_handler(func=lambda msg: msg.text == "Оставить заявку")
 def request(message):
     msg = bot.send_message(message.chat.id, "Введите ваше имя:")
-    bot.register_next_step_handler(msg, get_name)
-
-def get_name(message):
+    bot.register_next_step_handler(msg, process_name)
+    
+#Обработка имени пользователя
+def process_name(message):
     name = message.text
-    if not name.isalpha() or len(name) < 2:
-        bot.send_message(message.chat.id, "Имя должно содержать только буквы и быть не короче 2 символов")
+    if len(name) < 2:
+        bot.send_message(message.chat.id, "Имя слишком короткое")
         return
-    msg = bot.send_message(message.chat.id, "Введите ваш номер телефона:")
-    bot.register_next_step_handler(msg, get_phone,name)
+    msg = bot.send_message(message.chat.id, "Введите телефон (формат: +79991234567):")
+    bot.register_next_step_handler(msg, process_phone, name)
 
-def get_phone(message, name):
+#Обработка номера телефона и сохранение заявки
+def process_phone(message, name):
     phone = message.text
-    if not validate_phone(phone):
-        bot.send_message(message.chat.id, "Номер должен быть в формате +7XXXXXXXXXX")
+    if not phone.startswith("+7") or len(phone) != 12:
+        bot.send_message(message.chat.id, "Неверный формат телефона")
         return
+    
     try:
-        cursor.execute("INSERT INTO requests (...) VALUES (?, ?)", (name, phone))
+        cursor.execute("INSERT INTO requests (name, phone) VALUES (?, ?)", (name, phone))
         conn.commit()
-        bot.send_message(message.chat.id, "Заявка принята!")
-    except sqlite3.Error as e:
-        logger.error(f"Ошибка БД: {e}")
-        bot.send_message(message.chat.id, "Ошибка сохранения заявки.")
-    conn.commit()
-    bot.send_message(message.chat.id, "Спасибо! Мы скоро вам перезвоним.")
+        bot.send_message(message.chat.id, "✅ Заявка принята! Пример сохранения в БД:")
+        
+        # Демонстрация работы с БД (для портфолио)
+        cursor.execute("SELECT * FROM requests")
+        last_request = cursor.fetchone()
+        bot.send_message(message.chat.id, 
+                        f"Последняя запись в БД:\nИмя: {last_request[1]}\nТелефон: {last_request[2]}")
+    except Exception as e:
+        logger.error(f"Database error: {e}")
+        bot.send_message(message.chat.id, "⚠️ Ошибка сохранения")
 
-def validate_phone(phone: str) -> bool:
-    return phone.startswith("+7") and len(phone) == 12
-
-#Обработка inline кнопок
 @bot.callback_query_handler(func=lambda call: True)
-def casllback_handler(call):
+def handle_callbacks(call):
+    """Обработчик inline-кнопок"""
     if call.data == "hair":
-        bot.send_message(call.message.chat.id, "Услуги для волос:\n- Модельная стрижка: 1800р\n- Окрашивание: 3000р")
+        bot.send_message(call.message.chat.id, "💇 Услуги для волос:\n- Стрижка: 1500р\n- Окрашивание: 2500р")
     elif call.data == "nails":
-        bot.send_message(call.message.chat.id, "Маникюр:\n- Классический: 1000р\n- Дизайн: +500р")
+        bot.send_message(call.message.chat.id, "💅 Маникюр:\n- Классический: 1000р\n- Дизайн: +300р")
 
 if __name__ == "__main__":
-    logger.info("Бот запущен")
+    logger.info("Бот запущен (демо-версия для портфолио)")
     try:
         bot.infinity_polling()
     except Exception as e:
-        logger.error(f"Ошибка в работе бота: {e}")
+        logger.error(f"Ошибка: {e}")
     finally:
         conn.close()
-        logger.info("Бот остановлен")
