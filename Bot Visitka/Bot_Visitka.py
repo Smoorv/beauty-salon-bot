@@ -26,9 +26,9 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS requests
 def get_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     buttons = [
-        types.KeyboardButton("Прайс"),
-        types.KeyboardButton("Контакты"),
-        types.KeyboardButton("Оставить заявку")
+        types.KeyboardButton("📋Прайс"),
+        types.KeyboardButton("📞Контакты"),
+        types.KeyboardButton("✏️Оставить заявку")
     ]
     markup.add(*buttons)
     return markup
@@ -38,9 +38,22 @@ def start(message):
     bot.send_message(message.chat.id, 
                     "Добро пожаловать в демо-бот салона красоты!",
                     reply_markup=get_keyboard())
+  
+#Контакты салона
+@bot.message_handler(func=lambda msg: msg.text == "📞Контакты")
+def contacts(message):
+    contact_text = """
+    Адрес: Пример, ул. Колотушкина 20
+    Телефон: +7 (999) 123-45-67
+    """
+    markup = types.InlineKeyboardMarkup()
+    btn_insta = types.InlineKeyboardButton("Instagram", url = "https://instagram.com/example..")
+    btn_website = types.InlineKeyboardButton("Наш сайт", url = "https://example.com")
+    markup.add(btn_insta,btn_website)
+    bot.send_message(message.chat.id, contact_text, reply_markup=markup)
 
 #Прайс лист
-@bot.message_handler(func=lambda msg: msg.text == "Прайс")
+@bot.message_handler(func=lambda msg: msg.text == "📋Прайс")
 def show_price(message):
 
     markup = types.InlineKeyboardMarkup()
@@ -51,7 +64,7 @@ def show_price(message):
     bot.send_message(message.chat.id, "Выберите категорию:", reply_markup=markup)
 
 #Начало оформление заявки
-@bot.message_handler(func=lambda msg: msg.text == "Оставить заявку")
+@bot.message_handler(func=lambda msg: msg.text == "✏️Оставить заявку")
 def request(message):
     msg = bot.send_message(message.chat.id, "Введите ваше имя:")
     bot.register_next_step_handler(msg, process_name)
