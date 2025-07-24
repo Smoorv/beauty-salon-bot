@@ -2,14 +2,17 @@ import telebot
 from telebot import types
 import sqlite3
 import logging
+import os
+from dotenv import load_dotenv
 
 # Логгирование
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 #Токен бота должен быть в файле .env
-token = os.getenv('YOUR_TOKEN_HERE')
-bot = telebot.TeleBot("YOUR_TOKEN_HERE")
+load_dotenv()
+token = os.getenv('TOKEN')
+bot = telebot.TeleBot(token)
 
 #Для демо версии временная БД
 conn = sqlite3.connect(':memory:', check_same_thread=False)
